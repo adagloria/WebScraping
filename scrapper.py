@@ -19,14 +19,17 @@ def get_company_url(code:str)->str:
         str -- ural of desired company
     """
     params = {'name':'', 'city':0,'word':'','code':code,'catUrlKey':'','ok':'','resetFilter':0,'order':1}
-    url = "https://rekvizitai.vz.lt/imones/1"
-
-    with closing(post(url, params)) as response:
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            return soup.find_all("div", class_="info")[0].find('a').get('href')
-        else:
-            return None
+    url = "https://rekvizitai.vz.lt/en/companies/1"
+    try:
+        with closing(post(url, params)) as response:
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                return soup.find_all("div", class_="info")[0].find('a').get('href')
+            else:
+                return None
+    except RequestException as e:
+        raise RequestException(f'Error during requests to {url} : {str(e)}')
+         
 
 def get_url_content(url:str):
     """
@@ -36,11 +39,40 @@ def get_url_content(url:str):
     Returns:
         str -- raw html from given url
     """
-    with closing(get(url, stream=True)) as reply:
-        if reply.status_code == 200:
-            return reply.content
+    try:
+        with closing(get(url, stream=True)) as reply:
+            if reply.status_code == 200:
+                return reply.content
+            else:
+                return None
+    except RequestException as e:
+        raise RequestException(f'Error during requests to {url} : {str(e)}')
+
+def parse_content(raw_html, element_tag='table'):
+    html_soup = BeautifulSoup(raw_html, 'html.parser')
+    
+    table=html_soup.find_all(element_tag)[0]
+    tr=table.find_all('tr') 
+
+    values = ['Company name',html_soup.find("div", class_="name floatLeft").find('h1').get_text()]
+
+    for i in range(len(tr)):
+        if i > 10:
+            break
         else:
-            return None
+            if i < 2 :
+                values.append(tr[i].text.strip())
+            elif i == 3 or 1==10:
+                values.append(tr[i].text.strip())
+            
+            elif i == 2:
+                values.append(tr[i].text.strip().replace('\r', '').replace('\t', '').replace('\n', '', 1))
+            elif 1==8 or i==9:
+                values.append(tr[i].text.strip().replace('\r', '').replace('\t', '').replace('\n', '', 1))
+            else:
+                #elif i>=4 and i<=7:
+                continue
+    return values
 
 class Company(Resource):
     def post(self):
@@ -52,18 +84,23 @@ class Company(Resource):
             {} -- parameters and values about requested company
 
         """
-        json_data = request.get_json(force=True)
-        if "code" not in json_data or len(json_data["code"]) != 9:
-            return "Wrong parameter", 400
+        try:
+            json_data = request.get_json(force=True)
+            if "code" not in json_data or len(json_data["code"]) != 9:
+                return "Wrong parameter", 400
 
-        raw_html = get_url_content(get_company_url(json_data["code"]))
-        if raw_html == None or len(raw_html) == 0:
-            return f"Company with code {json_data['code']} was not found", 400
-            
-        soup = BeautifulSoup(raw_html, 'html.parser')
-        name = soup.find("div", class_="name floatLeft").find('h1').get_text()
-        return name, 200
+            url = get_company_url(json_data["code"])
 
+            raw_html = get_url_content(url)
+            if raw_html == None or len(raw_html) == 0:
+                return f"Company with code {json_data['code']} was not found", 400
+
+            result = parse_content(raw_html)
+                
+            return result, 200
+        except Exception as e:
+            return e, 400
+        
 api.add_resource(Company, "/getdata/")
 if __name__ == '__main__':
     app.run(debug=True)
