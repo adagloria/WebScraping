@@ -51,27 +51,16 @@ def get_url_content(url:str):
 def parse_content(raw_html, element_tag='table'):
     html_soup = BeautifulSoup(raw_html, 'html.parser')
     
-    table=html_soup.find_all(element_tag)[0]
+    table=html_soup.find('div',class_='info')
+    tr_list=table.find_all('tr') 
     tr=table.find_all('tr') 
 
-    values = ['Company name',html_soup.find("div", class_="name floatLeft").find('h1').get_text()]
+    values = {'Company name':html_soup.find("div", class_="name floatLeft").find('h1').get_text()}
 
-    for i in range(len(tr)):
-        if i > 10:
-            break
-        else:
-            if i < 2 :
-                values.append(tr[i].text.strip())
-            elif i == 3 or 1==10:
-                values.append(tr[i].text.strip())
-            
-            elif i == 2:
-                values.append(tr[i].text.strip().replace('\r', '').replace('\t', '').replace('\n', '', 1))
-            elif 1==8 or i==9:
-                values.append(tr[i].text.strip().replace('\r', '').replace('\t', '').replace('\n', '', 1))
-            else:
-                #elif i>=4 and i<=7:
-                continue
+    for item in tr_list:
+        td = item.find_all('td')
+        if td[len(td)-1].get_text() != '':
+            values[td[len(td)-2].get_text().strip().replace('\r', '').replace('\t', '').replace('\n', '', 1)] = td[len(td)-1].get_text().strip().replace('\r', '').replace('\t', '').replace('\n', '')
     return values
 
 class Company(Resource):
